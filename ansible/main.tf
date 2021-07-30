@@ -1,7 +1,8 @@
 terraform {
   required_providers {
     yandex = {
-      source = "yandex-cloud/yandex"
+      source  = "yandex-cloud/yandex"
+      version = "0.48.0"
     }
   }
 }
@@ -14,8 +15,7 @@ provider "yandex" {
 }
 
 resource "yandex_compute_instance" "vm-1" {
-  count = 2
-  name  = "terraform-${count.index}"
+  name = "terraform1"
 
   resources {
     cores  = 2
@@ -41,14 +41,16 @@ resource "yandex_compute_instance" "vm-1" {
     type        = "ssh"
     user        = "ubuntu"
     private_key = file("~/.ssh/id_rsa")
-    host        = self.network_interface.0.nat_ip_address
+    host        = yandex_compute_instance.vm-1.network_interface.0.nat_ip_address
   }
 
   provisioner "remote-exec" {
-    inline = [
-      "sudo apt update",
-      "sudo apt install -y nginx",
-    ]
+    inline = ["echo 'Im ready!'"]
+
+  }
+
+  provisioner "local-exec" {
+    command = "ansible-playbook -u ubuntu -i '${self.network_interface.0.nat_ip_address},' --private-key ~/.ssh/id_rsa provision.yml"
   }
 
 }
@@ -66,10 +68,10 @@ resource "yandex_vpc_subnet" "subnet-1" {
 }
 
 output "internal_ip_address_vm_1" {
-  value = yandex_compute_instance.vm-1.*.network_interface.0.ip_address
+  value = yandex_compute_instance.vm-1.network_interface.0.ip_address
 }
 
 
 output "external_ip_address_vm_1" {
-  value = yandex_compute_instance.vm-1.*.network_interface.0.nat_ip_address
+  value = yandex_compute_instance.vm-1.network_interface.0.nat_ip_address
 }

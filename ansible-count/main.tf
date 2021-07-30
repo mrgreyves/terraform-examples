@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     yandex = {
-      source = "yandex-cloud/yandex"
+      source  = "yandex-cloud/yandex"
     }
   }
 }
@@ -14,8 +14,10 @@ provider "yandex" {
 }
 
 resource "yandex_compute_instance" "vm-1" {
-  count = 2
-  name  = "terraform-${count.index}"
+
+  count = var.num
+
+  name = "terraform-${count.index}"
 
   resources {
     cores  = 2
@@ -37,19 +39,17 @@ resource "yandex_compute_instance" "vm-1" {
     ssh-keys = "ubuntu:${file("~/.ssh/id_rsa.pub")}"
   }
 
-  connection {
-    type        = "ssh"
-    user        = "ubuntu"
-    private_key = file("~/.ssh/id_rsa")
-    host        = self.network_interface.0.nat_ip_address
+  provisioner "remote-exec" {
+    inline = ["echo alive!!!!"]
+
+    connection {
+      host        = self.network_interface.0.nat_ip_address
+      type        = "ssh"
+      user        = "ubuntu"
+      private_key = file("~/.ssh/id_rsa")
+    }
   }
 
-  provisioner "remote-exec" {
-    inline = [
-      "sudo apt update",
-      "sudo apt install -y nginx",
-    ]
-  }
 
 }
 
@@ -65,11 +65,13 @@ resource "yandex_vpc_subnet" "subnet-1" {
   v4_cidr_blocks = ["192.168.10.0/24"]
 }
 
-output "internal_ip_address_vm_1" {
-  value = yandex_compute_instance.vm-1.*.network_interface.0.ip_address
-}
+resource "null_resource" "ansible-install" {
+  count = var.num
+  provisioner "local-exec" {
+    command = format("ansible-playbook -D -i %s, -u ubuntu ${path.module}/provision/provision.yml",
+    yandex_compute_instance.vm-1[count.index].network_interface[0].nat_ip_address != "" ? yandex_compute_instance.vm-1[count.index].network_interface[0].nat_ip_address : yandex_compute_instance.vm-1[count.index].network_interface[0].ip_address,
+    )
+  }
 
-
-output "external_ip_address_vm_1" {
-  value = yandex_compute_instance.vm-1.*.network_interface.0.nat_ip_address
+  
 }
